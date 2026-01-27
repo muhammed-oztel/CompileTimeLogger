@@ -1,6 +1,7 @@
-﻿using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Testing;
 using Microsoft.CodeAnalysis.Testing.Verifiers;
 
 namespace CompileTimeLogger.Test
@@ -22,6 +23,11 @@ namespace CompileTimeLogger.Test
 
                     return solution;
                 });
+
+                // Use .NET 8.0 reference assemblies with Microsoft.Extensions.Logging
+                ReferenceAssemblies = ReferenceAssemblies.Net.Net80.AddPackages(
+                    System.Collections.Immutable.ImmutableArray.Create(
+                        new PackageIdentity("Microsoft.Extensions.Logging.Abstractions", "8.0.0")));
             }
         }
     }

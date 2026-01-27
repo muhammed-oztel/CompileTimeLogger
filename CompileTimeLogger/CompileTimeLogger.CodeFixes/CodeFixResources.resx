@@ -117,8 +117,12 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="CodeFixTitle" xml:space="preserve">
-    <value>Make uppercase</value>
-    <comment>The title of the code fix.</comment>
+  <data name="CodeFixTitleInstanceMethod" xml:space="preserve">
+    <value>Convert to instance logging method</value>
+    <comment>The title of the code fix for instance method conversion.</comment>
+  </data>
+  <data name="CodeFixTitleLogClass" xml:space="preserve">
+    <value>Convert to private Log class</value>
+    <comment>The title of the code fix for nested Log class conversion.</comment>
   </data>
 </root>

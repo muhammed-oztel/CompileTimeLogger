@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -13,42 +10,131 @@ namespace CompileTimeLogger
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class CompileTimeLoggerAnalyzer : DiagnosticAnalyzer
     {
-        public const string DiagnosticId = "CompileTimeLogger";
+        public const string DiagnosticId = "CTL001";
 
-        // You can change these strings in the Resources.resx file. If you do not want your analyzer to be localize-able, you can use regular strings for Title and MessageFormat.
-        // See https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Localizing%20Analyzers.md for more on localization
-        private static readonly LocalizableString Title = new LocalizableResourceString(nameof(Resources.AnalyzerTitle), Resources.ResourceManager, typeof(Resources));
-        private static readonly LocalizableString MessageFormat = new LocalizableResourceString(nameof(Resources.AnalyzerMessageFormat), Resources.ResourceManager, typeof(Resources));
-        private static readonly LocalizableString Description = new LocalizableResourceString(nameof(Resources.AnalyzerDescription), Resources.ResourceManager, typeof(Resources));
-        private const string Category = "Naming";
+        private static readonly LocalizableString Title = new LocalizableResourceString(
+            nameof(Resources.AnalyzerTitle), Resources.ResourceManager, typeof(Resources));
+        private static readonly LocalizableString MessageFormat = new LocalizableResourceString(
+            nameof(Resources.AnalyzerMessageFormat), Resources.ResourceManager, typeof(Resources));
+        private static readonly LocalizableString Description = new LocalizableResourceString(
+            nameof(Resources.AnalyzerDescription), Resources.ResourceManager, typeof(Resources));
 
-        private static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(DiagnosticId, Title, MessageFormat, Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, description: Description);
+        private const string Category = "Performance";
 
-        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(Rule); } }
+        private static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
+            DiagnosticId,
+            Title,
+            MessageFormat,
+            Category,
+            DiagnosticSeverity.Info,
+            isEnabledByDefault: true,
+            description: Description);
+
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+            ImmutableArray.Create(Rule);
+
+        private static readonly string[] LogMethodNames = new[]
+        {
+            "LogTrace",
+            "LogDebug",
+            "LogInformation",
+            "LogWarning",
+            "LogError",
+            "LogCritical"
+        };
 
         public override void Initialize(AnalysisContext context)
         {
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
             context.EnableConcurrentExecution();
 
-            // TODO: Consider registering other actions that act on syntax instead of or in addition to symbols
-            // See https://github.com/dotnet/roslyn/blob/main/docs/analyzers/Analyzer%20Actions%20Semantics.md for more information
-            context.RegisterSymbolAction(AnalyzeSymbol, SymbolKind.NamedType);
+            context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
         }
 
-        private static void AnalyzeSymbol(SymbolAnalysisContext context)
+        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
         {
-            // TODO: Replace the following code with your own analysis, generating Diagnostic objects for any issues you find
-            var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
+            var invocation = (InvocationExpressionSyntax)context.Node;
 
-            // Find just those named type symbols with names containing lowercase letters.
-            if (namedTypeSymbol.Name.ToCharArray().Any(char.IsLower))
+            // Check if this is a member access expression (e.g., _logger.LogInformation)
+            if (!(invocation.Expression is MemberAccessExpressionSyntax memberAccess))
+                return;
+
+            var methodName = memberAccess.Name.Identifier.Text;
+
+            // Check if it's one of the Log* methods we're interested in
+            if (!LogMethodNames.Contains(methodName))
+                return;
+
+            // Get semantic model to verify this is actually ILogger
+            var semanticModel = context.SemanticModel;
+            var symbolInfo = semanticModel.GetSymbolInfo(invocation, context.CancellationToken);
+
+            if (!(symbolInfo.Symbol is IMethodSymbol methodSymbol))
+                return;
+
+            // Check if the method is from ILogger or ILogger<T>
+            var containingType = methodSymbol.ContainingType;
+            if (containingType == null)
+                return;
+
+            // Check if this is an extension method on ILogger
+            var receiverType = GetReceiverType(memberAccess, semanticModel, context.CancellationToken);
+            if (receiverType == null)
+                return;
+
+            if (!IsILoggerType(receiverType) && !IsILoggerType(containingType))
+                return;
+
+            // Check if there's a message template (string argument)
+            var arguments = invocation.ArgumentList.Arguments;
+            if (arguments.Count == 0)
+                return;
+
+            // Find the message template argument (first string literal or interpolated string)
+            var hasMessageTemplate = arguments.Any(arg =>
+                arg.Expression is LiteralExpressionSyntax literal &&
+                literal.IsKind(SyntaxKind.StringLiteralExpression));
+
+            if (!hasMessageTemplate)
+                return;
+
+            // Report diagnostic
+            var diagnostic = Diagnostic.Create(
+                Rule,
+                invocation.GetLocation(),
+                methodName);
+
+            context.ReportDiagnostic(diagnostic);
+        }
+
+        private static ITypeSymbol GetReceiverType(
+            MemberAccessExpressionSyntax memberAccess,
+            SemanticModel semanticModel,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            var typeInfo = semanticModel.GetTypeInfo(memberAccess.Expression, cancellationToken);
+            return typeInfo.Type;
+        }
+
+        private static bool IsILoggerType(ITypeSymbol type)
+        {
+            if (type == null)
+                return false;
+
+            // Check for ILogger or ILogger<T>
+            if (type.Name == "ILogger" &&
+                type.ContainingNamespace?.ToDisplayString() == "Microsoft.Extensions.Logging")
+                return true;
+
+            // Check interfaces
+            foreach (var iface in type.AllInterfaces)
             {
-                // For all such symbols, produce a diagnostic.
-                var diagnostic = Diagnostic.Create(Rule, namedTypeSymbol.Locations[0], namedTypeSymbol.Name);
-
-                context.ReportDiagnostic(diagnostic);
+                if (iface.Name == "ILogger" &&
+                    iface.ContainingNamespace?.ToDisplayString() == "Microsoft.Extensions.Logging")
+                    return true;
             }
+
+            return false;
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -55,6 +55,22 @@ namespace CompileTimeLogger.Test
             };
 
             test.ExpectedDiagnostics.AddRange(expected);
+            await test.RunAsync(CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Verifies a code fix with expected diagnostics for both source and fixed state.
+        /// </summary>
+        public static async Task VerifyCodeFixAsync(string source, DiagnosticResult expected, string fixedSource, params DiagnosticResult[] fixedStateExpected)
+        {
+            var test = new Test
+            {
+                TestCode = source,
+                FixedCode = fixedSource,
+            };
+
+            test.ExpectedDiagnostics.Add(expected);
+            test.FixedState.ExpectedDiagnostics.AddRange(fixedStateExpected);
             await test.RunAsync(CancellationToken.None);
         }
     }
