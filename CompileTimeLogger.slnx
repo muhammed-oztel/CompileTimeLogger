@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+  </Folder>
+  <Project Path="CompileTimeLogger/CompileTimeLogger.CodeFixes/CompileTimeLogger.CodeFixes.csproj" />
+  <Project Path="CompileTimeLogger/CompileTimeLogger.Package/CompileTimeLogger.Package.csproj" />
+  <Project Path="CompileTimeLogger/CompileTimeLogger.Test/CompileTimeLogger.Test.csproj" />
+  <Project Path="CompileTimeLogger/CompileTimeLogger.Vsix/CompileTimeLogger.Vsix.csproj" />
+  <Project Path="CompileTimeLogger/CompileTimeLogger/CompileTimeLogger.csproj" />
+</Solution>
