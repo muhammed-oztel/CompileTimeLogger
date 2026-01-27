@@ -9,17 +9,16 @@
 
   <PropertyGroup>
     <PackageId>CompileTimeLogger</PackageId>
-    <PackageVersion>1.0.0.0</PackageVersion>
-    <Authors>USER</Authors>
-    <PackageLicenseUrl>http://LICENSE_URL_HERE_OR_DELETE_THIS_LINE</PackageLicenseUrl>
-    <PackageProjectUrl>http://PROJECT_URL_HERE_OR_DELETE_THIS_LINE</PackageProjectUrl>
-    <PackageIconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</PackageIconUrl>
-    <RepositoryUrl>http://REPOSITORY_URL_HERE_OR_DELETE_THIS_LINE</RepositoryUrl>
+    <Version>1.0.0</Version>
+    <Authors>muhammed.oztel</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <Description>CompileTimeLogger</Description>
-    <PackageReleaseNotes>Summary of changes made in this release of the package.</PackageReleaseNotes>
-    <Copyright>Copyright</Copyright>
-    <PackageTags>CompileTimeLogger, analyzers</PackageTags>
+    <Description>A Roslyn analyzer that detects ILogger.Log* method calls and provides code fixes to convert them to compile-time generated logging using the [LoggerMessage] attribute for better performance.</Description>
+    <PackageReleaseNotes>Initial release with support for all log levels and two code fix options.</PackageReleaseNotes>
+    <Copyright>Copyright (c) CompileTimeLogger Contributors</Copyright>
+    <PackageTags>CompileTimeLogger;analyzers;roslyn;logging;ILogger;LoggerMessage;performance;source-generator</PackageTags>
     <DevelopmentDependency>true</DevelopmentDependency>
     <NoPackageAnalysis>true</NoPackageAnalysis>
 
@@ -33,6 +32,7 @@
 
   <ItemGroup>
     <None Update="tools\*.ps1" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <Target Name="_AddAnalyzersToOutput">

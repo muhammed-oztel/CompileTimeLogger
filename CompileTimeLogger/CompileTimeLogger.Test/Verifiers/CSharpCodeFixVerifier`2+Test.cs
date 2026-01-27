@@ -24,10 +24,10 @@ namespace CompileTimeLogger.Test
                     return solution;
                 });
 
-                // Use .NET 8.0 reference assemblies with Microsoft.Extensions.Logging
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net80.AddPackages(
+                // Use .NET 9.0 reference assemblies with Microsoft.Extensions.Logging
+                ReferenceAssemblies = ReferenceAssemblies.Net.Net90.AddPackages(
                     System.Collections.Immutable.ImmutableArray.Create(
-                        new PackageIdentity("Microsoft.Extensions.Logging.Abstractions", "8.0.0")));
+                        new PackageIdentity("Microsoft.Extensions.Logging.Abstractions", "9.0.0")));
             }
         }
     }
