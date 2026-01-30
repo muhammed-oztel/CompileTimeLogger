@@ -90,10 +90,11 @@ namespace CompileTimeLogger
             if (arguments.Count == 0)
                 return;
 
-            // Find the message template argument (first string literal or interpolated string)
+            // Find the message template argument (string literal or interpolated string)
             var hasMessageTemplate = arguments.Any(arg =>
-                arg.Expression is LiteralExpressionSyntax literal &&
-                literal.IsKind(SyntaxKind.StringLiteralExpression));
+                (arg.Expression is LiteralExpressionSyntax literal &&
+                 literal.IsKind(SyntaxKind.StringLiteralExpression)) ||
+                arg.Expression is InterpolatedStringExpressionSyntax);
 
             if (!hasMessageTemplate)
                 return;

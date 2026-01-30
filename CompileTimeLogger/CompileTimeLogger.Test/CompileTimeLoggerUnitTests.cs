@@ -332,5 +332,258 @@ namespace TestNamespace
 
             await VerifyCS.VerifyAnalyzerAsync(test, expected);
         }
+
+        [TestMethod]
+        public async Task Diagnostic_InterpolatedString_SingleParameter()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string userId)
+        {
+            {|#0:_logger.LogInformation($""User {userId} logged in"")|};
+        }
+    }
+}";
+
+            var expected = VerifyCS.Diagnostic("CTL001")
+                .WithLocation(0)
+                .WithArguments("LogInformation");
+
+            await VerifyCS.VerifyAnalyzerAsync(test, expected);
+        }
+
+        [TestMethod]
+        public async Task Diagnostic_InterpolatedString_MultipleParameters()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string userId, string action)
+        {
+            {|#0:_logger.LogInformation($""User {userId} performed {action}"")|};
+        }
+    }
+}";
+
+            var expected = VerifyCS.Diagnostic("CTL001")
+                .WithLocation(0)
+                .WithArguments("LogInformation");
+
+            await VerifyCS.VerifyAnalyzerAsync(test, expected);
+        }
+
+        [TestMethod]
+        public async Task CodeFix_InstanceMethod_InterpolatedString()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string userId)
+        {
+            {|#0:_logger.LogInformation($""User {userId} logged in"")|};
+        }
+    }
+}";
+
+            var fixedCode = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    partial class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string userId)
+        {
+            LogUserLoggedIn(userId);
+        }
+
+        [LoggerMessage(Level = LogLevel.Information, Message = ""User {UserId} logged in"")]
+        private partial void LogUserLoggedIn(string userId);
+    }
+}";
+
+            var expected = VerifyCS.Diagnostic("CTL001")
+                .WithLocation(0)
+                .WithArguments("LogInformation");
+
+            var fixedCodeExpected = DiagnosticResult.CompilerError("CS8795")
+                .WithSpan(21, 30, 21, 45)
+                .WithArguments("TestNamespace.TestClass.LogUserLoggedIn(string)");
+
+            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, fixedCodeExpected);
+        }
+
+        [TestMethod]
+        public async Task CodeFix_LogClass_InterpolatedString()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string userId, string action)
+        {
+            {|#0:_logger.LogWarning($""User {userId} performed {action}"")|};
+        }
+    }
+}";
+
+            var fixedCode = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    partial class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string userId, string action)
+        {
+            Log.UserPerformed(_logger, userId, action);
+        }
+
+        private static partial class Log
+        {
+            [LoggerMessage(Level = LogLevel.Warning, Message = ""User {UserId} performed {Action}"")]
+            public static partial void UserPerformed(ILogger logger, string userId, string action);
+        }
+    }
+}";
+
+            var expected = VerifyCS.Diagnostic("CTL001")
+                .WithLocation(0)
+                .WithArguments("LogWarning");
+
+            var fixedCodeExpected = DiagnosticResult.CompilerError("CS8795")
+                .WithSpan(21, 40, 21, 53)
+                .WithArguments("TestNamespace.TestClass.Log.UserPerformed(Microsoft.Extensions.Logging.ILogger, string, string)");
+
+            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, fixedCodeExpected, codeFixIndex: 1);
+        }
+
+        [TestMethod]
+        public async Task Diagnostic_InterpolatedString_WithException()
+        {
+            var test = @"
+using System;
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(string operation)
+        {
+            try
+            {
+                throw new Exception();
+            }
+            catch (Exception ex)
+            {
+                {|#0:_logger.LogError(ex, $""Error during {operation}"")|};
+            }
+        }
+    }
+}";
+
+            var expected = VerifyCS.Diagnostic("CTL001")
+                .WithLocation(0)
+                .WithArguments("LogError");
+
+            await VerifyCS.VerifyAnalyzerAsync(test, expected);
+        }
+
+        [TestMethod]
+        public async Task Diagnostic_InterpolatedString_WithFormatting()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod(double value)
+        {
+            {|#0:_logger.LogInformation($""Value is {value:N2}"")|};
+        }
+    }
+}";
+
+            var expected = VerifyCS.Diagnostic("CTL001")
+                .WithLocation(0)
+                .WithArguments("LogInformation");
+
+            await VerifyCS.VerifyAnalyzerAsync(test, expected);
+        }
     }
 }
