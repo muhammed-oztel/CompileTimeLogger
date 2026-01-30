@@ -513,7 +513,7 @@ namespace TestNamespace
                 .WithSpan(21, 40, 21, 53)
                 .WithArguments("TestNamespace.TestClass.Log.UserPerformed(Microsoft.Extensions.Logging.ILogger, string, string)");
 
-            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, fixedCodeExpected, codeFixIndex: 1);
+            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, fixedCodeExpected);
         }
 
         [TestMethod]
