@@ -244,30 +244,39 @@ namespace CompileTimeLogger
                 return null;
 
             var messageArg = arguments[messageIndex];
+
+            // Handle regular string literal
             if (messageArg.Expression is LiteralExpressionSyntax literal &&
                 literal.IsKind(SyntaxKind.StringLiteralExpression))
             {
                 info.MessageTemplate = literal.Token.ValueText;
+
+                // Extract placeholders from message template
+                var placeholders = ExtractPlaceholders(info.MessageTemplate);
+
+                // Match placeholders with remaining arguments
+                var paramArguments = arguments.Skip(messageIndex + 1).ToList();
+                for (int i = 0; i < placeholders.Count && i < paramArguments.Count; i++)
+                {
+                    var argType = semanticModel.GetTypeInfo(paramArguments[i].Expression).Type;
+                    info.Parameters.Add(new ParameterInfo
+                    {
+                        Name = ToCamelCase(placeholders[i]),
+                        Type = argType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "object",
+                        Argument = paramArguments[i].Expression
+                    });
+                }
+            }
+            // Handle interpolated string
+            else if (messageArg.Expression is InterpolatedStringExpressionSyntax interpolatedString)
+            {
+                var (messageTemplate, parameters) = ExtractFromInterpolatedString(interpolatedString, semanticModel);
+                info.MessageTemplate = messageTemplate;
+                info.Parameters = parameters;
             }
             else
             {
                 return null;
-            }
-
-            // Extract placeholders from message template
-            var placeholders = ExtractPlaceholders(info.MessageTemplate);
-
-            // Match placeholders with remaining arguments
-            var paramArguments = arguments.Skip(messageIndex + 1).ToList();
-            for (int i = 0; i < placeholders.Count && i < paramArguments.Count; i++)
-            {
-                var argType = semanticModel.GetTypeInfo(paramArguments[i].Expression).Type;
-                info.Parameters.Add(new ParameterInfo
-                {
-                    Name = ToCamelCase(placeholders[i]),
-                    Type = argType?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "object",
-                    Argument = paramArguments[i].Expression
-                });
             }
 
             return info;
@@ -282,6 +291,90 @@ namespace CompileTimeLogger
                 placeholders.Add(match.Groups[1].Value);
             }
             return placeholders;
+        }
+
+        private static (string MessageTemplate, List<ParameterInfo> Parameters) ExtractFromInterpolatedString(
+            InterpolatedStringExpressionSyntax interpolatedString,
+            SemanticModel semanticModel)
+        {
+            var messageTemplate = new StringBuilder();
+            var parameters = new List<ParameterInfo>();
+            var placeholderIndex = 0;
+
+            foreach (var content in interpolatedString.Contents)
+            {
+                if (content is InterpolatedStringTextSyntax textSyntax)
+                {
+                    // Add the literal text
+                    messageTemplate.Append(textSyntax.TextToken.ValueText);
+                }
+                else if (content is InterpolationSyntax interpolation)
+                {
+                    // Extract the expression
+                    var expression = interpolation.Expression;
+                    var expressionText = expression.ToString();
+
+                    // Generate placeholder name from expression
+                    var placeholderName = GeneratePlaceholderName(expressionText, placeholderIndex);
+                    placeholderIndex++;
+
+                    // Add placeholder to message template
+                    if (interpolation.FormatClause != null)
+                    {
+                        // Preserve format string (e.g., {Value:N2})
+                        messageTemplate.Append($"{{{placeholderName}{interpolation.FormatClause}}}");
+                    }
+                    else
+                    {
+                        messageTemplate.Append($"{{{placeholderName}}}");
+                    }
+
+                    // Get the type of the expression
+                    var typeInfo = semanticModel.GetTypeInfo(expression);
+                    var type = typeInfo.Type?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? "object";
+
+                    // Add parameter info
+                    parameters.Add(new ParameterInfo
+                    {
+                        Name = ToCamelCase(placeholderName),
+                        Type = type,
+                        Argument = expression
+                    });
+                }
+            }
+
+            return (messageTemplate.ToString(), parameters);
+        }
+
+        private static string GeneratePlaceholderName(string expression, int index)
+        {
+            // Clean up the expression to create a valid parameter name
+            // Remove common prefixes and clean up the name
+            var cleaned = expression.Trim();
+
+            // Handle member access (e.g., user.Id -> UserId)
+            if (cleaned.Contains("."))
+            {
+                var parts = cleaned.Split('.');
+                var name = string.Join("", parts.Select(p => char.ToUpperInvariant(p[0]) + p.Substring(1)));
+                return name;
+            }
+
+            // Handle array/indexer access (e.g., items[0] -> Items0)
+            cleaned = Regex.Replace(cleaned, @"\[(\d+)\]", "$1");
+            cleaned = Regex.Replace(cleaned, @"[^\w]", "");
+
+            // Ensure it starts with uppercase
+            if (!string.IsNullOrEmpty(cleaned))
+            {
+                cleaned = char.ToUpperInvariant(cleaned[0]) + cleaned.Substring(1);
+            }
+            else
+            {
+                cleaned = $"Value{index}";
+            }
+
+            return cleaned;
         }
 
         private static string GetLogLevelFromMethodName(string methodName)
