@@ -585,5 +585,240 @@ namespace TestNamespace
 
             await VerifyCS.VerifyAnalyzerAsync(test, expected);
         }
+
+        [TestMethod]
+        public async Task CodeFix_LogClass_MultipleLogLevels()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod()
+        {
+            {|#0:_logger.LogInformation(""User logged in"")|};
+            {|#1:_logger.LogWarning(""User warning"")|};
+            {|#2:_logger.LogError(""User error"")|};
+        }
+    }
+}";
+
+            var fixedCode = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    partial class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod()
+        {
+            Log.UserLoggedIn(_logger);
+            Log.UserWarning(_logger);
+            Log.UserError(_logger);
+        }
+
+        private static partial class Log
+        {
+            [LoggerMessage(Level = LogLevel.Information, Message = ""User logged in"")]
+            public static partial void UserLoggedIn(ILogger logger);
+            [LoggerMessage(Level = LogLevel.Warning, Message = ""User warning"")]
+            public static partial void UserWarning(ILogger logger);
+            [LoggerMessage(Level = LogLevel.Error, Message = ""User error"")]
+            public static partial void UserError(ILogger logger);
+        }
+    }
+}";
+
+            var expected = new[]
+            {
+                VerifyCS.Diagnostic("CTL001").WithLocation(0).WithArguments("LogInformation"),
+                VerifyCS.Diagnostic("CTL001").WithLocation(1).WithArguments("LogWarning"),
+                VerifyCS.Diagnostic("CTL001").WithLocation(2).WithArguments("LogError")
+            };
+
+            var fixedCodeExpected = new[]
+            {
+                DiagnosticResult.CompilerError("CS8795")
+                    .WithSpan(25, 40, 25, 52)
+                    .WithArguments("TestNamespace.TestClass.Log.UserLoggedIn(Microsoft.Extensions.Logging.ILogger)"),
+                DiagnosticResult.CompilerError("CS8795")
+                    .WithSpan(27, 40, 27, 51)
+                    .WithArguments("TestNamespace.TestClass.Log.UserWarning(Microsoft.Extensions.Logging.ILogger)"),
+                DiagnosticResult.CompilerError("CS8795")
+                    .WithSpan(29, 40, 29, 49)
+                    .WithArguments("TestNamespace.TestClass.Log.UserError(Microsoft.Extensions.Logging.ILogger)")
+            };
+
+            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, 1, fixedCodeExpected);
+        }
+
+        [TestMethod]
+        public async Task CodeFix_LogClass_DuplicateMessages_NoDuplicateMethods()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod1()
+        {
+            {|#0:_logger.LogInformation(""User logged in"")|};
+        }
+
+        public void TestMethod2()
+        {
+            {|#1:_logger.LogInformation(""User logged in"")|};
+        }
+    }
+}";
+
+            var fixedCode = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    partial class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod1()
+        {
+            Log.UserLoggedIn(_logger);
+        }
+
+        public void TestMethod2()
+        {
+            Log.UserLoggedIn(_logger);
+        }
+
+        private static partial class Log
+        {
+            [LoggerMessage(Level = LogLevel.Information, Message = ""User logged in"")]
+            public static partial void UserLoggedIn(ILogger logger);
+        }
+    }
+}";
+
+            var expected = new[]
+            {
+                VerifyCS.Diagnostic("CTL001").WithLocation(0).WithArguments("LogInformation"),
+                VerifyCS.Diagnostic("CTL001").WithLocation(1).WithArguments("LogInformation")
+            };
+
+            var fixedCodeExpected = DiagnosticResult.CompilerError("CS8795")
+                .WithSpan(28, 40, 28, 52)
+                .WithArguments("TestNamespace.TestClass.Log.UserLoggedIn(Microsoft.Extensions.Logging.ILogger)");
+
+            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, 1, fixedCodeExpected);
+        }
+
+        [TestMethod]
+        public async Task CodeFix_InstanceMethod_MultipleLogLevels()
+        {
+            var test = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod()
+        {
+            {|#0:_logger.LogInformation(""User logged in"")|};
+            {|#1:_logger.LogWarning(""User warning"")|};
+            {|#2:_logger.LogError(""User error"")|};
+        }
+    }
+}";
+
+            var fixedCode = @"
+using Microsoft.Extensions.Logging;
+
+namespace TestNamespace
+{
+    partial class TestClass
+    {
+        private readonly ILogger _logger;
+
+        public TestClass(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void TestMethod()
+        {
+            LogUserLoggedIn();
+            LogUserWarning();
+            LogUserError();
+        }
+
+        [LoggerMessage(Level = LogLevel.Information, Message = ""User logged in"")]
+        private partial void LogUserLoggedIn();
+        [LoggerMessage(Level = LogLevel.Warning, Message = ""User warning"")]
+        private partial void LogUserWarning();
+        [LoggerMessage(Level = LogLevel.Error, Message = ""User error"")]
+        private partial void LogUserError();
+    }
+}";
+
+            var expected = new[]
+            {
+                VerifyCS.Diagnostic("CTL001").WithLocation(0).WithArguments("LogInformation"),
+                VerifyCS.Diagnostic("CTL001").WithLocation(1).WithArguments("LogWarning"),
+                VerifyCS.Diagnostic("CTL001").WithLocation(2).WithArguments("LogError")
+            };
+
+            var fixedCodeExpected = new[]
+            {
+                DiagnosticResult.CompilerError("CS8795")
+                    .WithSpan(23, 30, 23, 45)
+                    .WithArguments("TestNamespace.TestClass.LogUserLoggedIn()"),
+                DiagnosticResult.CompilerError("CS8795")
+                    .WithSpan(25, 30, 25, 44)
+                    .WithArguments("TestNamespace.TestClass.LogUserWarning()"),
+                DiagnosticResult.CompilerError("CS8795")
+                    .WithSpan(27, 30, 27, 42)
+                    .WithArguments("TestNamespace.TestClass.LogUserError()")
+            };
+
+            await VerifyCS.VerifyCodeFixAsync(test, expected, fixedCode, 0, fixedCodeExpected);
+        }
     }
 }

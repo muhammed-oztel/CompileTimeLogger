@@ -90,5 +90,22 @@ namespace CompileTimeLogger.Test
             test.FixedState.ExpectedDiagnostics.AddRange(fixedStateExpected);
             await test.RunAsync(CancellationToken.None);
         }
+
+        /// <summary>
+        /// Verifies a code fix with multiple expected diagnostics for both source and fixed state, using a specific code action index.
+        /// </summary>
+        public static async Task VerifyCodeFixAsync(string source, DiagnosticResult[] expected, string fixedSource, int codeActionIndex, params DiagnosticResult[] fixedStateExpected)
+        {
+            var test = new Test
+            {
+                TestCode = source,
+                FixedCode = fixedSource,
+                CodeActionIndex = codeActionIndex,
+            };
+
+            test.ExpectedDiagnostics.AddRange(expected);
+            test.FixedState.ExpectedDiagnostics.AddRange(fixedStateExpected);
+            await test.RunAsync(CancellationToken.None);
+        }
     }
 }
