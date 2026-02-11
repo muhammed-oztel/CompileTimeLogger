@@ -32,11 +32,17 @@ jobs:
     - name: Setup NuGet
       uses: nuget/setup-nuget@v2
 
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
     - name: Restore dependencies
       run: dotnet restore CompileTimeLogger.slnx
 
     - name: Build
       run: dotnet build CompileTimeLogger.slnx --configuration Release --no-restore
+
+    - name: Build VSIX extension
+      run: msbuild CompileTimeLogger/CompileTimeLogger.Vsix/CompileTimeLogger.Vsix.csproj /p:Configuration=Release /p:DeployExtension=false
 
     - name: Test
       run: dotnet test CompileTimeLogger.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
@@ -56,6 +62,40 @@ jobs:
       with:
         name: nuget-package
         path: ./artifacts/*.nupkg
+
+    - name: Upload VSIX artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vsix-extension
+        path: '**/CompileTimeLogger.Vsix/bin/Release/*.vsix'
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download NuGet package artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: nuget-package
+        path: ./artifacts/nuget
+
+    - name: Download VSIX artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: vsix-extension
+        path: ./artifacts/vsix
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+        files: |
+          ./artifacts/nuget/*.nupkg
+          ./artifacts/vsix/*.vsix
 
   publish-nuget:
     needs: build
